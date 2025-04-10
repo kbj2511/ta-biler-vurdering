@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: ta-biler-vurdering
+    name: ta-biler-vurderingsrobot
     env: docker
     plan: free
     autoDeploy: true
