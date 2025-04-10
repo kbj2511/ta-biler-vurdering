@@ -1,4 +1,5 @@
 streamlit
+fpdf
 requests
 beautifulsoup4
 selenium
