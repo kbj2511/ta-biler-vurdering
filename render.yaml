@@ -1,6 +1,5 @@
 services:
   - type: web
-    name: ta-biler-vurdering-app
+    name: ta-biler-complete-demo
     env: docker
     plan: free
-    autoDeploy: true
