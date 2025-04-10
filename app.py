@@ -3,6 +3,9 @@ import requests
 from bs4 import BeautifulSoup
 from datetime import datetime
 import streamlit as st
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+import time
 
 
 def hent_bildata_skat(nummerplade):
@@ -37,6 +40,39 @@ def beregn_anbefalet_kobspris(salgspris, årgang, kilometer, brændstof):
     return round(kobspris, 2), round(min_avance, 2)
 
 
+def hent_markedspriser_bilbasen(mærke, model, årgang):
+    query_model = model.replace(" ", "%20")
+    url = f"https://www.bilbasen.dk/brugt/bil/resultat?Make={mærke}&Model={query_model}&YearFrom={årgang}&YearTo={årgang}"
+
+    options = Options()
+    options.headless = True
+    driver = webdriver.Chrome(options=options)
+    driver.get(url)
+    time.sleep(3)
+
+    soup = BeautifulSoup(driver.page_source, "html.parser")
+    driver.quit()
+
+    priser = []
+    biler = soup.find_all("div", class_="bb-listing__price")
+    for bil in biler:
+        pris_txt = bil.text.strip().replace(" kr.", "").replace(".", "").replace(" ", "")
+        try:
+            pris = int(pris_txt)
+            priser.append(pris)
+        except:
+            continue
+
+    if priser:
+        return {
+            "antal": len(priser),
+            "gennemsnit": sum(priser) / len(priser),
+            "min": min(priser),
+            "max": max(priser)
+        }
+    return None
+
+
 # Streamlit Webapp
 st.set_page_config(page_title="TA Biler - Prisvurdering", layout="centered")
 st.title("🚗 TA Biler - Automatisk prisvurdering")
@@ -52,6 +88,8 @@ if st.button("Vurder bil") and nummerplade and salgspris_input:
             årgang = int(data.get("Førstegangsregistrering", "2020")[-4:])
             kilometer = int(data.get("Kilometerstand", "100000").replace('.', '').replace(' km', ''))
             brændstof = data.get("Drivmiddel", "benzin")
+            model_full = data.get("Model", "")
+            mærke = data.get("Mærke", "")
 
             anbefalet_kobspris, min_avance = beregn_anbefalet_kobspris(salgspris_input, årgang, kilometer, brændstof)
 
@@ -61,6 +99,15 @@ if st.button("Vurder bil") and nummerplade and salgspris_input:
             st.write(f"**Brændstof:** {brændstof}")
             st.write(f"**Minimum avancekrav:** {min_avance:,.2f} DKK")
             st.write(f"### 💰 Anbefalet maksimal købspris: `{anbefalet_kobspris:,.2f} DKK`")
+
+            st.subheader("📈 Markedsdata fra Bilbasen")
+            markedsdata = hent_markedspriser_bilbasen(mærke, model_full, årgang)
+            if markedsdata:
+                st.write(f"Antal fundne biler: {markedsdata['antal']}")
+                st.write(f"Gennemsnitspris: {markedsdata['gennemsnit']:,.0f} DKK")
+                st.write(f"Prisinterval: {markedsdata['min']:,.0f} – {markedsdata['max']:,.0f} DKK")
+            else:
+                st.info("Ingen markedsdata kunne hentes fra Bilbasen.")
 
         except Exception as e:
             st.error(f"Der opstod en fejl under hentning eller behandling af data: {str(e)}")
